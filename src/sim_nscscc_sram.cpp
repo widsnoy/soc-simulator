@@ -41,14 +41,14 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
     mmio.set_address_mask(0x1fffffff); // for some CPU have no MMU.
 
     // func mem at 0x1fc00000 and 0x0
-    mmio_mem func_mem(262144*4, "../../vivado/func_test_v0.01/soft/func/obj/main.bin");
+    mmio_mem func_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
     func_mem.set_allow_warp(true);
-    assert(mmio.add_dev(0x1fc00000,0x100000,&func_mem));
+    assert(mmio.add_dev(0x1c000000,0x100000,&func_mem));
     assert(mmio.add_dev(0x00000000,0x10000000,&func_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
-    confreg.set_trace_file("../../vivado/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
+    confreg.set_trace_file("/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
     // connect Vcd for trace
@@ -69,8 +69,7 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
         if (rst_ticks  > 0) {
             top->resetn = 0;
             rst_ticks --;
-        }
-        else top->resetn = 1;
+        } else top->resetn = 1;
         top->clk = !top->clk;
         if (top->clk && top->resetn) mmio_sigs.update_input(mmio_ref);
         top->eval();
@@ -85,7 +84,7 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
             }
             running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
         }
-        if (top->debug_wb_pc == 0xbfc00100u) running = false;
+        if (top->debug_wb_pc == 0x1c000100u) running = false;
         if (trace_on) {
             vcd.dump(ticks);
             sim_time --;

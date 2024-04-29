@@ -10,27 +10,27 @@
 // offset += 0x1faf8000
 
 #define CR0_ADDR            0x8000  //32'hbfaf_8000 
-#define CR1_ADDR            0x8004  //32'hbfaf_8004 
-#define CR2_ADDR            0x8008  //32'hbfaf_8008 
-#define CR3_ADDR            0x800c  //32'hbfaf_800c 
-#define CR4_ADDR            0x8010  //32'hbfaf_8010 
-#define CR5_ADDR            0x8014  //32'hbfaf_8014 
-#define CR6_ADDR            0x8018  //32'hbfaf_8018 
-#define CR7_ADDR            0x801c  //32'hbfaf_801c 
-#define LED_ADDR            0xf000  //32'hbfaf_f000 
-#define LED_RG0_ADDR        0xf004  //32'hbfaf_f004 
-#define LED_RG1_ADDR        0xf008  //32'hbfaf_f008 
-#define NUM_ADDR            0xf010  //32'hbfaf_f010 
-#define SWITCH_ADDR         0xf020  //32'hbfaf_f020 
-#define BTN_KEY_ADDR        0xf024  //32'hbfaf_f024
-#define BTN_STEP_ADDR       0xf028  //32'hbfaf_f028
-#define SW_INTER_ADDR       0xf02c  //32'hbfaf_f02c 
+#define CR1_ADDR            0x8010  //32'hbfaf_8004 
+#define CR2_ADDR            0x8020  //32'hbfaf_8008 
+#define CR3_ADDR            0x8030  //32'hbfaf_800c 
+#define CR4_ADDR            0x8040  //32'hbfaf_8010 
+#define CR5_ADDR            0x8050  //32'hbfaf_8014 
+#define CR6_ADDR            0x8060  //32'hbfaf_8018 
+#define CR7_ADDR            0x8070  //32'hbfaf_801c 
+#define LED_ADDR            0xf020  //32'hbfaf_f000 
+#define LED_RG0_ADDR        0xf030  //32'hbfaf_f004 
+#define LED_RG1_ADDR        0xf040  //32'hbfaf_f008 
+#define NUM_ADDR            0xf050  //32'hbfaf_f010 
+#define SWITCH_ADDR         0xf060  //32'hbfaf_f020 
+#define BTN_KEY_ADDR        0xf070  //32'hbfaf_f024
+#define BTN_STEP_ADDR       0xf080  //32'hbfaf_f028
+#define SW_INTER_ADDR       0xf090  //32'hbfaf_f02c 
 #define TIMER_ADDR          0xe000  //32'hbfaf_e000 
-#define IO_SIMU_ADDR        0xffec  //32'hbfaf_ffec
-#define VIRTUAL_UART_ADDR   0xfff0  //32'hbfaf_fff0
-#define SIMU_FLAG_ADDR      0xfff4  //32'hbfaf_fff4 
-#define OPEN_TRACE_ADDR     0xfff8  //32'hbfaf_fff8
-#define NUM_MONITOR_ADDR    0xfffc  //32'hbfaf_fffc
+#define IO_SIMU_ADDR        0xff00  //32'hbfaf_ffec
+#define VIRTUAL_UART_ADDR   0xff10  //32'hbfaf_fff0
+#define SIMU_FLAG_ADDR      0xff20  //32'hbfaf_fff4 
+#define OPEN_TRACE_ADDR     0xff30  //32'hbfaf_fff8
+#define NUM_MONITOR_ADDR    0xff40  //32'hbfaf_fffc
 
 // physical address = [0x1faf0000,0x1fafffff]
 class nscscc_confreg : public mmio_dev {
