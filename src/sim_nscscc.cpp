@@ -9,7 +9,7 @@
 #include "uart8250.hpp"
 #include "nscscc_confreg.hpp"
 #include "memory_bus.hpp"
-#include "mips_core.hpp"
+#include "la32r_core.hpp"
 
 #include <iostream>
 #include <termios.h>
@@ -79,24 +79,35 @@ void uart_input(uart8250 &uart) {
     }
 }
 
+// 0x000000001c000000 24
+// 0x0000000040000000 30
+// 0x00000000c0000000 30
+// 0x0000000080000000 29
+// 0x0000000000000000 28
+
+// confreg
+// 0x000000001faf0000 16
+// 0x00000000bfaf0000 16
+
 void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4     <32,32,4> mmio_sigs;
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio(23);
 
-    // func mem at 0x1fc00000 and 0x0
-    mmio_mem perf_mem(262144*4, "../../vivado/func_test_v0.01/soft/func/obj/main.bin");
+    // func mem at 0x1c000000 and 0x0
+    mmio_mem perf_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
     perf_mem.set_allow_warp(true);
-    assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
+    assert(mmio.add_dev(0x1c000000,0x100000,&perf_mem));
     assert(mmio.add_dev(0x00000000,0x10000000,&perf_mem));
-    assert(mmio.add_dev(0x20000000,0x20000000,&perf_mem));
     assert(mmio.add_dev(0x40000000,0x40000000,&perf_mem));
-    assert(mmio.add_dev(0x80000000,0x80000000,&perf_mem));
+    assert(mmio.add_dev(0x80000000,0x20000000,&perf_mem));
+    assert(mmio.add_dev(0xc0000000,0x40000000,&perf_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
-    confreg.set_trace_file("../../vivado/func_test_v0.01/cpu132_gettrace/golden_trace.txt");
+    confreg.set_trace_file("/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+    assert(mmio.add_dev(0xbfaf0000,0x10000,&confreg));
 
     // connect Vcd for trace
     VerilatedVcdC vcd;
@@ -133,7 +144,7 @@ void func_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             }
         }
         if (top->aclk) running = confreg.do_trace(top->debug_wb_pc,top->debug_wb_rf_wen,top->debug_wb_rf_wnum,top->debug_wb_rf_wdata);
-        if (top->debug_wb_pc == 0xbfc00100u) running = false;
+        if (top->debug_wb_pc == 0x1c000100u) running = false;
         if (trace_on) {
             vcd.dump(ticks);
             sim_time --;
@@ -154,13 +165,14 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio(axi_fast ? 0 : 23);
 
-    // perf mem at 0x1fc00000
-    mmio_mem perf_mem(262144*4, "../../vivado/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
-    assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
+    // perf mem at 0x1c000000
+    mmio_mem perf_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    assert(mmio.add_dev(0x1c000000,0x100000,&perf_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(perf_once);
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+    assert(mmio.add_dev(0xbfaf0000,0x10000,&confreg));
     
     // connect Vcd for trace
     VerilatedVcdC vcd;
@@ -197,7 +209,7 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
                 top->eval();
                 while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             }
-            if (top->aresetn && top->debug_wb_pc == 0xbfc00100u) test_end = true;
+            if (top->aresetn && top->debug_wb_pc == 0x1c000100u) test_end = true;
             if (trace_on) {
                 vcd.dump(ticks);
                 sim_time --;
@@ -220,18 +232,18 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     // cemu {
     memory_bus cemu_mmio;
     
-    mmio_mem cemu_func_mem(262144*4, "../../vivado/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
+    mmio_mem cemu_func_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
     cemu_func_mem.set_allow_warp(true);
-    assert(cemu_mmio.add_dev(0x1fc00000,0x100000  ,&cemu_func_mem));
+    assert(cemu_mmio.add_dev(0x1c000000,0x100000,&cemu_func_mem));
     assert(cemu_mmio.add_dev(0x00000000,0x10000000,&cemu_func_mem));
-    assert(cemu_mmio.add_dev(0x20000000,0x20000000,&cemu_func_mem));
     assert(cemu_mmio.add_dev(0x40000000,0x40000000,&cemu_func_mem));
-    assert(cemu_mmio.add_dev(0x80000000,0x80000000,&cemu_func_mem));
+    assert(cemu_mmio.add_dev(0x80000000,0x20000000,&cemu_func_mem));
+    assert(cemu_mmio.add_dev(0xc0000000,0x40000000,&cemu_func_mem));
 
     nscscc_confreg cemu_confreg(perf_once);
     assert(cemu_mmio.add_dev(0x1faf0000,0x10000,&cemu_confreg));
-
-    mips_core cemu_mips(cemu_mmio);
+    assert(cemu_mmio.add_dev(0xbfaf0000,0x10000,&cemu_confreg));
+    la32r_core cemu_la32r(0, cemu_mmio, trace_on);
     // cemu }
 
     // rtl soc-simulator {
@@ -239,13 +251,17 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
     axi4_ref <32,32,4> mmio_sigs_ref(mmio_sigs);
     axi4_xbar<32,32,4> mmio(axi_fast ? 0 : 23);
 
-    // perf mem at 0x1fc00000
-    mmio_mem perf_mem(262144*4, "../../vivado/perf_test_v0.01/soft/perf_func/obj/allbench/inst_data.bin");
-    assert(mmio.add_dev(0x1fc00000,0x100000,&perf_mem));
-
+    // perf mem at 0x1c000000
+    mmio_mem perf_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    assert(mmio.add_dev(0x1c000000,0x100000,&perf_mem));
+    assert(mmio.add_dev(0x00000000,0x10000000,&perf_mem));
+    assert(mmio.add_dev(0x40000000,0x40000000,&perf_mem));
+    assert(mmio.add_dev(0x80000000,0x20000000,&perf_mem));
+    assert(mmio.add_dev(0xc0000000,0x40000000,&perf_mem));
     // confreg at 0x1faf0000
     nscscc_confreg confreg(perf_once);
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+    assert(mmio.add_dev(0xbfaf0000,0x10000,&confreg));
     
     // connect Vcd for trace
     VerilatedVcdC vcd;
@@ -266,7 +282,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
         uint64_t rst_ticks = 1000;
         uint64_t last_commit = ticks;
         uint64_t commit_timeout = 5000;
-        cemu_mips.reset();
+        cemu_la32r.reset();
         while (!Verilated::gotFinish() && sim_time > 0 && running && !test_end) {
             if (rst_ticks  > 0) {
                 top->aresetn = 0;
@@ -284,7 +300,7 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
                 top->eval();
                 while (confreg_uart && confreg.has_uart()) printf("%c",confreg.get_uart());
             }
-            if (top->aresetn && top->debug_wb_pc == 0xbfc00100u) test_end = true;
+            if (top->aresetn && top->debug_wb_pc == 0x1c000100u) test_end = true;
             if (trace_on) {
                 vcd.dump(ticks);
                 sim_time --;
@@ -292,21 +308,21 @@ void cemu_perf_diff(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_star
             // trace with cemu {
             if (top->aclk && top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
                 do {
-                    cemu_mips.step();
+                    cemu_la32r.step();
                     cemu_confreg.tick();
-                } while(!(cemu_mips.debug_wb_wen && cemu_mips.debug_wb_wnum));
-                if ( cemu_mips.debug_wb_pc    != top->debug_wb_pc      || 
-                     cemu_mips.debug_wb_wnum  != top->debug_wb_rf_wnum ||
-                    (cemu_mips.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_mips.debug_wb_is_timer)
+                } while(!(cemu_la32r.debug_wb_wen && cemu_la32r.debug_wb_wnum));
+                if ( cemu_la32r.debug_wb_pc    != top->debug_wb_pc      || 
+                     cemu_la32r.debug_wb_wnum  != top->debug_wb_rf_wnum ||
+                    (cemu_la32r.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_la32r.debug_wb_is_timer)
                 ) {
                     printf("Error!\n");
-                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_mips.debug_wb_pc, cemu_mips.debug_wb_wnum, cemu_mips.debug_wb_wdata);
+                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_la32r.debug_wb_pc, cemu_la32r.debug_wb_wnum, cemu_la32r.debug_wb_wdata);
                     printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
                     running = false;
                 }
                 else {
-                    if (cemu_mips.debug_wb_is_timer) {
-                        cemu_mips.set_GPR(cemu_mips.debug_wb_wnum, top->debug_wb_rf_wdata);
+                    if (cemu_la32r.debug_wb_is_timer) {
+                        cemu_la32r.set_GPR(cemu_la32r.debug_wb_wnum, top->debug_wb_rf_wdata);
                     }
                 }
                 last_commit = ticks;
@@ -351,13 +367,13 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
     axi4_xbar<32,32,4> mmio(axi_fast ? 0 : 23);
 
     // sys_mem at 0x0
-    mmio_mem sys_mem(128*1024*1024, "../ucore-thumips/obj/ucore-kernel-initrd.bin");
+    mmio_mem sys_mem(128*1024*1024, "../ucore-thula32r/obj/ucore-kernel-initrd.bin");
     assert(mmio.add_dev(0x0,128*1024*1024,&sys_mem));
 
-    // bootloader at 0x1fc00000
+    // bootloader at 0x1c000000
     mmio_mem bl_mem(4096);
     bl_mem.do_write(0,sizeof(loader_instr),(uint8_t*)&loader_instr);
-    assert(mmio.add_dev(0x1fc00000,4096,&bl_mem));
+    assert(mmio.add_dev(0x1c000000,4096,&bl_mem));
 
     // uart8250 at 0x1fe40000 (APB)
     uart8250 uart;
@@ -406,7 +422,7 @@ void ucore_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref) {
             vcd.dump(ticks);
             sim_time --;
         }
-        top->ext_int = uart.irq() << 1;
+        //top->ext_int = uart.irq() << 1;
         top->aclk = 0;
         if (ticks - last_commit > commit_timeout) {
             printf("ERROR: There are %lu cycles since last commit at %lu ps.\n", commit_timeout, ticks);
