@@ -167,7 +167,12 @@ void perf_run(Vmycpu_top *top, axi4_ref <32,32,4> &mmio_ref, int test_start = 1,
 
     // perf mem at 0x1c000000
     mmio_mem perf_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    perf_mem.set_allow_warp(true);
     assert(mmio.add_dev(0x1c000000,0x100000,&perf_mem));
+    assert(mmio.add_dev(0x00000000,0x10000000,&perf_mem));
+    assert(mmio.add_dev(0x40000000,0x40000000,&perf_mem));
+    assert(mmio.add_dev(0x80000000,0x20000000,&perf_mem));
+    assert(mmio.add_dev(0xc0000000,0x40000000,&perf_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(perf_once);
