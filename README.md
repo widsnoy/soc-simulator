@@ -1,3 +1,8 @@
+## 简介
+使用 CEMU 的核心，将模拟器移植到了 loongarch32r。  
+支持功能测试和差分测试。   
+差分测试的参数可以参考 nscscc_axi 分支的 README。
+
 ## Verilator仿真相比Vivado仿真的优劣对比
 
 优点：
