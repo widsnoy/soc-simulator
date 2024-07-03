@@ -8,6 +8,8 @@
 #include "nscscc_confreg.hpp"
 
 #include "mmio_mem.hpp"
+#include "la32r_core.hpp"
+#include "memory_bus.hpp"
 
 #include <iostream>
 #include <termios.h>
@@ -18,7 +20,8 @@
 
 
 bool running = true;
-bool trace_on = true;
+bool trace_on = false;
+bool perf_once = false;
 long sim_time = 1e7;
 
 void connect_wire(nscscc_sram_ptr &sram_ptr, Vmycpu_top *top) {
@@ -41,14 +44,14 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
     mmio.set_address_mask(0x1fffffff); // for some CPU have no MMU.
 
     // func mem at 0x1fc00000 and 0x0
-    mmio_mem func_mem(262144*4, "/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    mmio_mem func_mem(262144*4, "/mnt/e/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
     func_mem.set_allow_warp(true);
     assert(mmio.add_dev(0x1c000000,0x100000,&func_mem));
     assert(mmio.add_dev(0x00000000,0x10000000,&func_mem));
 
     // confreg at 0x1faf0000
     nscscc_confreg confreg(true);
-    confreg.set_trace_file("/home/widsnoy/Loongson/cdp_ede_local/mycpu_env/gettrace/golden_trace.txt");
+    confreg.set_trace_file("/mnt/e/Loongson/cdp_ede_local/mycpu_env/gettrace/golden_trace.txt");
     assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
 
     // connect Vcd for trace
@@ -100,6 +103,114 @@ void func_test(Vmycpu_top *top, nscscc_sram_ref &mmio_ref) {
     top->final();
 }
 
+void cemu_perf_diff(Vmycpu_top *top, nscscc_sram_ref &mmio_ref, int test_start = 1, int test_end = 1) {
+    // cemu {
+    memory_bus cemu_mmio;
+    
+    mmio_mem cemu_func_mem(262144*4, "/mnt/e/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    cemu_func_mem.set_allow_warp(true);
+    assert(cemu_mmio.add_dev(0x1c000000,0x100000,&cemu_func_mem));
+    assert(cemu_mmio.add_dev(0x00000000,0x10000000,&cemu_func_mem));
+
+    nscscc_confreg cemu_confreg(perf_once);
+    assert(cemu_mmio.add_dev(0x1faf0000,0x10000,&cemu_confreg));
+    assert(cemu_mmio.add_dev(0xbfaf0000,0x10000,&cemu_confreg));
+    la32r_core cemu_la32r(0, cemu_mmio, trace_on);
+    // cemu }
+
+    // rtl soc-simulator {
+    nscscc_sram         mmio_sigs;
+    nscscc_sram_ref     mmio_sigs_ref(mmio_sigs);
+    nscscc_sram_xbar    mmio;
+    mmio.set_address_mask(0x1fffffff); // for some CPU have no MMU.
+
+    // func mem at 0x1fc00000 and 0x0
+    mmio_mem func_mem(262144*4, "/mnt/e/Loongson/cdp_ede_local/mycpu_env/func/obj/main.bin");
+    func_mem.set_allow_warp(true);
+    assert(mmio.add_dev(0x1c000000,0x100000,&func_mem));
+    assert(mmio.add_dev(0x00000000,0x10000000,&func_mem));
+
+    // confreg at 0x1faf0000
+    nscscc_confreg confreg(true);
+    confreg.set_trace_file("/mnt/e/Loongson/cdp_ede_local/mycpu_env/gettrace/golden_trace.txt");
+    assert(mmio.add_dev(0x1faf0000,0x10000,&confreg));
+    assert(mmio.add_dev(0xbfaf0000,0x10000,&confreg));
+    
+    // connect Vcd for trace
+    VerilatedVcdC vcd;
+    if (trace_on) {
+        top->trace(&vcd,0);
+    }
+    uint64_t ticks = 0;
+    // rtl soc-simulator }
+
+    for (int test=test_start;test<=test_end && running;test++) {
+        bool test_end = false;
+        confreg.set_switch(test);
+        cemu_confreg.set_switch(test);
+        top->resetn = 0;
+        std::stringstream ss;
+        ss << "trace-perf-" << test << ".vcd";
+        if (trace_on) vcd.open(ss.str().c_str());
+        uint64_t rst_ticks = 1000;
+        uint64_t last_commit = ticks;
+        uint64_t commit_timeout = 50000;
+        cemu_la32r.reset();
+        while (!Verilated::gotFinish() && sim_time > 0 && running && !test_end) {
+            if (rst_ticks  > 0) {
+                top->resetn = 0;
+                rst_ticks --;
+            }
+            else top->resetn = 1;
+            top->clk = !top->clk;
+            if (top->clk && top->resetn) mmio_sigs.update_input(mmio_ref);
+            top->eval();
+            if (top->clk && top->resetn) {
+                confreg.tick();
+                mmio.beat(mmio_sigs_ref);
+                mmio_sigs.update_output(mmio_ref);
+                top->eval();
+            }
+            if (top->resetn && top->debug_wb_pc == 0x1c000100u) test_end = true;
+            if (trace_on) {
+                vcd.dump(ticks);
+                sim_time --;
+            }
+            // trace with cemu {
+            if (top->clk && top->debug_wb_rf_wen && top->debug_wb_rf_wnum) {
+                do {
+                    cemu_la32r.step();
+                    cemu_confreg.tick();
+                } while(!(cemu_la32r.debug_wb_wen && cemu_la32r.debug_wb_wnum));
+                if ( cemu_la32r.debug_wb_pc    != top->debug_wb_pc      || 
+                     cemu_la32r.debug_wb_wnum  != top->debug_wb_rf_wnum ||
+                    (cemu_la32r.debug_wb_wdata != top->debug_wb_rf_wdata && !cemu_la32r.debug_wb_is_timer)
+                ) {
+                    printf("Error!\n");
+                    printf("reference: PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", cemu_la32r.debug_wb_pc, cemu_la32r.debug_wb_wnum, cemu_la32r.debug_wb_wdata);
+                    printf("mycpu    : PC = 0x%08x, wb_rf_wnum = 0x%02x, wb_rf_wdata = 0x%08x\n", top->debug_wb_pc, top->debug_wb_rf_wnum, top->debug_wb_rf_wdata);
+                    running = false;
+                }
+                else {
+                    if (cemu_la32r.debug_wb_is_timer) {
+                        cemu_la32r.set_GPR(cemu_la32r.debug_wb_wnum, top->debug_wb_rf_wdata);
+                    }
+                }
+                last_commit = ticks;
+            }
+            if (ticks - last_commit >= commit_timeout) {
+                printf("ERROR: There are %lu cycles since last commit\n", commit_timeout);
+                running = false;
+            }
+            ticks ++;
+        }
+        if (trace_on) vcd.close();
+        printf("%x\n",confreg.get_num());
+    }
+    top->final();
+    printf("total ticks = %lu\n", ticks);
+}
+
 int main(int argc, char** argv, char** env) {
     Verilated::commandArgs(argc, argv);
     Verilated::traceEverOn(true);
@@ -108,12 +219,54 @@ int main(int argc, char** argv, char** env) {
         running = false;
     });
 
+    enum {NOP, FUNC, CEMU_PERF_DIFF} run_mode = NOP;
+
+    int perf_start = 1;
+    int perf_end = 10;
+
+    for (int i=1;i<argc;i++) {
+        if (strcmp(argv[i],"-trace") == 0) {
+            trace_on = true;
+            if (i+1 < argc) {
+                sscanf(argv[++i],"%lu",&sim_time);
+            }
+        }
+        else if (strcmp(argv[i],"-func") == 0) {
+            run_mode = FUNC;
+        }
+        else if (strcmp(argv[i],"-prog") == 0) {
+            if (i+1 < argc) {
+                sscanf(argv[++i],"%lu",&perf_start);
+                perf_end = perf_start;
+                printf("set performance test program to %d\n",perf_start);
+            }
+        }
+        else if (strcmp(argv[i],"-perfdiff") == 0) {
+            run_mode = CEMU_PERF_DIFF;
+        }
+        else if (strcmp(argv[i],"-perfonce") == 0) {
+            perf_once = true;
+        }
+    }
+
     // setup soc
     Vmycpu_top *top = new Vmycpu_top;
     nscscc_sram_ptr sram_ptr;
     connect_wire(sram_ptr, top);
     nscscc_sram_ref sram_ref(sram_ptr);
-    func_test(top, sram_ref);
-
+    switch (run_mode) {
+        case FUNC:
+            func_test(top, sram_ref);
+            break;
+        case CEMU_PERF_DIFF:
+            if (trace_on && perf_start != perf_end) {
+                printf("Warning: You should better set perf program.\n");
+            }
+            cemu_perf_diff(top, sram_ref, perf_start, perf_end);
+            break;
+        default:
+            printf("Unknown running mode. Please read readme.md!\n");
+            exit(-ENOENT);
+    }
     return 0;
 }

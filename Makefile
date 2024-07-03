@@ -1,5 +1,5 @@
 TOP_NAME := mycpu_top
-SRC_DIR  := /home/widsnoy/test
+SRC_DIR  := /home/widsnoy/widsnoy-la32r/build
 INC_FILE := $(shell find $(SRC_DIR) -name '*.svh') $(shell find $(SRC_DIR) -name '*.vh') $(shell find $(SRC_DIR) -name '*.v') $(shell find $(SRC_DIR) -name '*.sv')
 INC_DIR	 := $(addprefix -I, $(shell find $(SRC_DIR) -type d))
 .PHONY: clean
